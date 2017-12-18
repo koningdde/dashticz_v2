@@ -1,10 +1,9 @@
 function setSrcRss(cur){
   	$($(cur).data("target")).find('iframe').attr('src',$(cur).data("link"));
 }
-
+$.ajax({url: 'vendor/jquery.newsTicker.min.js', async: false,dataType: "script"});
 function getNews(divToFill,newsfeed){
-
-	if(typeof(_NEWS_RSSFEED)!=='undefined'){
+	if(typeof(settings['default_news_url'])!=='undefined'){
 		// Some RSS feed doesn't load trough crossorigin.me or vice versa
 		//$.ajax('https://crossorigin.me/'+newsfeed, {
 		$.ajax(newsfeed, {
@@ -55,7 +54,7 @@ function getNews(divToFill,newsfeed){
 					direction: 'up',
 					easing: 'lineair',
 					speed: 'slow',
-					interval: _SCROLL_NEWS_AFTER,
+					interval: parseFloat(settings['news_scroll_after']*1000),
 					visible: 1,
 					mousePause: 0
 				}).data('easyTicker');

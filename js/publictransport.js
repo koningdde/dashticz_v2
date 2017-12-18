@@ -1,7 +1,7 @@
-function loadPublicTransport(random,transportobject){
+function loadPublicTransport(random,transportobject,key){
 	var width = 12;
 	if(typeof(transportobject.width)!=='undefined') width=transportobject.width;
-	var html='<div class="col-xs-'+width+'" style="padding-left:0px !important;padding-right:0px !important;">';
+	var html='<div data-id="publictransport.'+key+'" class="col-xs-'+width+'" style="padding-left:0px !important;padding-right:0px !important;">';
 	if(typeof(transportobject.title)!=='undefined') html+='<div class="col-xs-12 mh titlegroups transbg"><h3>'+transportobject.title+'</h3></div>';
 					
 	html+='<div class="publictransport publictransport'+random+' col-xs-12 transbg">';
@@ -27,7 +27,7 @@ function loadPublicTransport(random,transportobject){
 	var interval = 60;
 	if(typeof(transportobject.interval)!=='undefined') interval = transportobject.interval;
 	getData(random,transportobject);
-	setTimeout(function(){$('.publictransport'+random+' .state').html(lang.loading);},100);
+	setTimeout(function(){$('.publictransport'+random+' .state').html(language.misc.loading);},100);
 	
 	if(transportobject.provider.toLowerCase() == 'ns'){
 		if(parseFloat(interval)<60) interval=60; // limit request because of limitations in NS api for my private key ;)
@@ -41,10 +41,14 @@ function loadPublicTransport(random,transportobject){
 
 function getData(random,transportobject){
 	var provider = transportobject.provider.toLowerCase();
+	var dataURL = '';
 	if(provider == 'vvs'){
 		dataURL = 'https://efa-api.asw.io/api/v1/station/'+transportobject.station+'/departures/';
 	}
-	else if(provider == '9292' || provider == '9292-train' || provider == '9292-bus'){
+	else if(provider == 'mobiliteit'){
+		dataURL = 'https://cors-anywhere.herokuapp.com/http://travelplanner.mobiliteit.lu/restproxy/departureBoard?accessId=cdt&format=json&id=A=1@O='+transportobject.station;
+	}
+	else if(provider == '9292' || provider == '9292-train' || provider == '9292-bus' || provider == '9292-metro' || provider == '9292-tram-bus'){
 		dataURL = 'https://cors-anywhere.herokuapp.com/http://api.9292.nl/0.1/locations/'+transportobject.station+'/departure-times?lang=nl-NL&time='+$.now();
 	}
 	
@@ -58,10 +62,12 @@ function dataPublicTransport(random,data,transportobject){
 	var dataPart = {}
 	var i = 0;
 	for(d in data){
-		if(provider == '9292' || provider == '9292-train' || provider == '9292-bus'){
+		if(provider == '9292' || provider == '9292-train' || provider == '9292-bus' || provider =='9292-metro' || provider == '9292-tram-bus'){
 			for(t in data[d]){
 				if(provider == '9292' || 
 				   (data[d][t]['id']=='bus' && provider == '9292-bus') || 
+				   (data[d][t]['id']=='metro' && provider == '9292-metro') || 
+				   (data[d][t]['id']=='tram-bus' && provider == '9292-tram-bus') || 
 				   (data[d][t]['id']=='trein' && provider == '9292-train')
 				){
 					deps = data[d][t]['departures'];
@@ -81,8 +87,46 @@ function dataPublicTransport(random,data,transportobject){
 							else if(typeof(deps[de]['RouteTekst'])!=='undefined') dataPart[key][i]+=' via '+deps[de]['viaNames'];
 						}
 						dataPart[key][i]+=' </div>';
+						i++;
 					}
 				}
+			}
+		}
+		else if(provider == 'mobiliteit') {
+			for(t in data[d]) {
+				if(data[d][t]['time']==null){
+					continue;
+				}
+				key = data[d][t]['time'];
+				if(typeof(dataPart[key])=='undefined') dataPart[key]=[];
+				var fullArrivalDate = data[d][t]['date'] + ' ' + data[d][t]['time'];
+				var arrivalTime =  moment(fullArrivalDate);
+				var delay = 'Null';
+				if (data[d][t]['rtTime']) {
+					var fullRealArrivalDate = data[d][t]['rtDate'] + ' ' + data[d][t]['rtTime'];
+					var realArrivalTime = moment(fullRealArrivalDate);
+					var delay = '+' + realArrivalTime.diff(arrivalTime, 'minutes');
+				}
+				dataPart[key][i]='';
+				dataPart[key][i]+='<div><span class="trainTime">'+ arrivalTime.format('HH:mm') +'</span>';
+			
+				if (delay <= 0) {
+					dataPart[key][i]+='<span id="notlatetrain">'+delay+'</span>';
+				} 
+				else if (delay > 0) {
+					dataPart[key][i]+='<span id="latetrain">'+delay+'</span>';
+				}
+				dataPart[key][i]+='<span class="trainSeparator"> - </span>'
+				dataPart[key][i]+='<span class="trainLine '+(data[d][t]['name']).replace(/ /g,'')+'">'+data[d][t]['name']+'</span>';
+				dataPart[key][i]+='<span class="trainSeparator"> - </span>'
+
+				dest = data[d][t]['direction'].split(' via ');
+				dataPart[key][i]+='<span class="trainDestination">'+dest[0];
+				if(typeof(transportobject.show_via)=='undefined' || transportobject.show_via==true){
+					if(typeof(dest[1])!=='undefined') dataPart[key][i]+=' via '+dest[1];
+				}
+
+				dataPart[key][i]+='</span></div>';
 			}
 		}
 		else if(provider == 'vvs'){
@@ -95,7 +139,7 @@ function dataPublicTransport(random,data,transportobject){
 			if(data[d]['delay'] == 0) latecolor='notlatetrain';	
 			if(data[d]['delay'] > 0) latecolor='latetrain';
 			dataPart[arrivalTime][i]+='<span id="'+latecolor+'">+'+data[d]['delay']+' Min.</span> ';
-			dataPart[arrivalTime][i]+='<span id="departureScheduled">('+lang['scheduled']+': '+arrivalTimeScheduled+')</span> ';
+			dataPart[arrivalTime][i]+='<span id="departureScheduled">('+language.misc.scheduled+': '+arrivalTimeScheduled+')</span> ';
 			dataPart[arrivalTime][i]+='- '+data[d]['number']+' ';
 			
 			dest = data[d]['direction'].split(' via ');
@@ -105,8 +149,8 @@ function dataPublicTransport(random,data,transportobject){
 			}
 			
 			dataPart[arrivalTime][i]+='</div>';
+			i++;
 		}
-		i = i+1;
 	}
 	
 	$('.publictransport'+random+' .state').html('');
@@ -121,7 +165,7 @@ function dataPublicTransport(random,data,transportobject){
 	
 	if(typeof(transportobject.show_lastupdate)!=='undefined' && transportobject.show_lastupdate==true){
 		var dt = new Date();
-		$('.publictransport'+random+' .state').append('<em>'+lang['last_update']+': '+addZero(dt.getHours()) + ":"+addZero(dt.getMinutes())+":"+addZero(dt.getSeconds())+'</em>')
+		$('.publictransport'+random+' .state').append('<em>'+language.misc.last_update+': '+addZero(dt.getHours()) + ":"+addZero(dt.getMinutes())+":"+addZero(dt.getSeconds())+'</em>')
 	}
 }
 
